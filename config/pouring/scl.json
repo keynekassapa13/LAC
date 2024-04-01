@@ -1,0 +1,97 @@
+{
+    "name": "SCL",
+    "n_gpu": 1,
+    "seed": 1,
+    "img_size": 224,
+    "use_amp": true,
+    "type": "SCL",
+
+    "arch": {
+        "type": "ResNet50_Transformer1",
+        "projection": true,
+        "projection_hidden_size": 512,
+        "projection_size": 128,
+        "train_base": "frozen",
+        "l2_normalize": true,
+        "base_model": {
+            "layer": 3,
+            "frames_per_batch": 40
+        },
+        "embedder_model": {
+            "type": "transformer",
+            "hidden_size": 256,
+            "d_ff": 1024,
+            "num_heads": 8,
+            "num_layers": 2,
+            "capacity_scalar": 2,
+            "conv_layers": [[256, 3, 1]],
+            "embedding_size": 128,
+            "dropout": 0.1,
+            "fc_layers": [[256, true], [256, true]],
+            "flatten": "max_pooling"
+        }
+    },
+    "data_loader": {
+        "type": "Pouring",
+        "data_dir": "../datasets/pouring",
+        "batch_size": 16,
+        "ssl": true,
+        "shuffle": true,
+        "num_workers": 2,
+        "num_steps": 32,
+        "num_context_steps": 2,
+        "num_frames": 64,
+        "num_contexts": 1,
+        "context_stride": 1,
+        "frame_stride": 16,
+        "sampling": "time_augment",
+        "sampling_region": 1.5,
+        "consistent_offset": 0.2,
+        "positive_range": 10,
+        "negative_range": 30,
+        "tcn_multiply": 8,
+        "random_offset": 1
+    },
+    "augmentation": {
+        "brightness": true,
+        "brightness_delta": 0.8,
+        "contrast": true,
+        "contrast_delta": 0.8,
+        "saturation": true,
+        "saturation_delta": 0.8,
+        "hue": true,
+        "hue_delta": 0.2,
+        "random_flip": true,
+        "random_crop": false,
+        "strength": 1.0
+    },
+    "loss": {
+        "type": "scl_loss",
+        "negative_type": "single_noself",
+        "positive_type": "gauss",
+        "label_varience": 10.0,
+        "temperature": 0.1
+    },
+    "optimizer": {
+        "type": "Adam",
+        "grad_clip": 10,
+        "scheduler_type": "cosine",
+        "lr": 1e-04,
+        "momentum": 0.9,
+        "weight_decay": 1e-05
+    },
+    "trainer": {
+        "epochs": 300,
+        "log_interval": 10,
+        "log_summary": true,
+
+        "resume": false,
+        "log_dir": "saved/logs/",
+        "save_dir": "saved/models/",
+        "loguru_dir": "saved/loguru/",
+        "resume_model": "model_final.pth",
+
+        "tensorboard": true
+    },
+    "eval": true
+}

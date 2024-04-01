@@ -1,0 +1,76 @@
+{
+    "name": "TCN_pa",
+    "n_gpu": 1,
+    "seed": 1,
+    "img_size": 224,
+    "use_amp": true,
+    "type": "TCN",
+
+    "arch": {
+        "type": "Inceptionv3_SpatialSoftmax",
+        "l2_normalize": true
+    },
+    "data_loader": {
+        "type": "PennAction",
+        "action": "baseball_pitch",
+        "data_dir": "../datasets/penn_action",
+        "batch_size": 32,
+        "ssl": true,
+        "shuffle": true,
+        "num_workers": 2,
+        "num_steps": 32,
+        "num_frames": 120,
+        "num_context_steps": 2,
+        "num_contexts": 2,
+        "context_stride": 1,
+        "frame_stride": 16,
+        "sampling": "time_augment",
+        "sampling_region": 1.5,
+        "consistent_offset": 0.2,
+        "positive_range": 10,
+        "negative_range": 30,
+        "tcn_multiply": 8,
+        "random_offset": 1
+    },
+    "augmentation": {
+        "brightness": true,
+        "brightness_delta": 0.2,
+        "contrast": true,
+        "contrast_delta": 0.5,
+        "saturation": false,
+        "saturation_delta": 0,
+        "hue": false,
+        "hue_delta": 0,
+        "random_flip": true,
+        "random_crop": false,
+        "strength": 1.0
+    },
+    "loss": {
+        "type": "TripletMarginLoss",
+        "margin": 0.2,
+        "reduction": "mean",
+        "pairwise_distance": 2
+    },
+    "optimizer": {
+        "type": "Adam",
+        "grad_clip": 10,
+        "scheduler_type": "cosine",
+        "lr": 1e-04,
+        "momentum": 0.9,
+        "weight_decay": 1e-05
+    },
+    "trainer": {
+        "epochs": 200,
+        "log_interval": 20,
+        "log_summary": true,
+
+        "resume": false,
+        "log_dir": "saved/logs/",
+        "save_dir": "saved/models/",
+        "loguru_dir": "saved/loguru/",
+        "resume_model": "model_final.pth",
+
+        "tensorboard": true
+    },
+    "eval": true
+}
