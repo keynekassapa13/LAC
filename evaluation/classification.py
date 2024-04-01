@@ -10,6 +10,11 @@ from sklearn.svm import SVC
 
 from loguru import logger
 
+"""
+References:
+[1] https://github.com/minghchen/CARL_code
+"""
+
 def fit_linear_model(train_embs, train_labels,
                     val_embs, val_labels):
     """Fit a linear classifier."""

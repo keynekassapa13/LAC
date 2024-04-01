@@ -6,6 +6,12 @@ from scipy.stats import kendalltau
 
 from loguru import logger
 
+"""
+References:
+[1] https://github.com/minghchen/CARL_code
+"""
+
+
 def softmax(w, t=1.0):
     e = np.exp(np.array(w) / t)
     return e / np.sum(e)

@@ -3,6 +3,12 @@ import torch
 import numpy as np
 from scipy.spatial.distance import cdist
 
+"""
+References:
+[1] https://github.com/minghchen/CARL_code
+"""
+
+
 DATASET_TO_NUM_CLASSES = {
     'pouring': 5,
     'baseball_pitch': 4,
