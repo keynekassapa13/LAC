@@ -2,8 +2,9 @@
 
 Keyne Oei
 
+<img src="lac.png" alt="LAC" width="750"/>
 
-<img src="pouring_vid1.png" alt="CASA" width="750"/>
+<img src="pouring_vid1.png" alt="LAC_RES" width="750"/>
 
 ## Environment Setup
 
