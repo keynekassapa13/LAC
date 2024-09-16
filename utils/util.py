@@ -1,4 +1,5 @@
 import json
+from loguru import logger
 import torch
 import pandas as pd
 from pathlib import Path
@@ -68,3 +69,32 @@ class MetricTracker:
         return dict(self._data.average)
 
 # ========================================================================
+
+def load_ckpt(cfg, model, optimizer, base_path="./"):
+    logger.info(f"Loding checkpoint from {cfg.trainer.save_dir}")
+    path = base_path + cfg.trainer.save_dir
+    if os.path.exists(path):
+        model_names = [m for m in os.listdir(path) if m.startswith(cfg.type) and m.endswith(".pth")]
+        if len(model_names) > 0:
+            logger.info(f"Model names: {model_names}")
+            model_names.sort()
+            def sort_key(filename):
+                return int(filename.split("_")[-1].split(".")[0])
+            model_names.sort(key=sort_key) 
+            logger.info(f"Model names: {model_names}")
+            model_name = model_names[-1]
+            logger.info(f"Loading model: {model_name}")
+            path = os.path.join(path, model_name)
+            logger.info(f"Loading model from {path}")
+            checkpoint = torch.load(path)
+            model.load_state_dict(checkpoint['model_state_dict'])
+            if optimizer:
+                optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+            logger.info(f"Loaded checkpoint from {path}")
+            return model, optimizer, checkpoint["epoch"]
+        else:
+            logger.info(f"No model found in {path}")
+    else:
+        logger.info(f"Path {path} does not exist")
+        
+    return model, optimizer, 0
