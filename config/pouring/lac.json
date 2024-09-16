@@ -12,7 +12,7 @@
     },
     "data_loader": {
         "type": "Pouring",
-        "data_dir": "../../datasets/pouring",
+        "data_dir": "../datasets/pouring",
         "batch_size": 2,
         "ssl": true,
         "shuffle": true,
