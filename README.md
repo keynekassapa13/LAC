@@ -1,10 +1,8 @@
-# Self-Supervised Contrastive Learning for Video Representation with Local Alignment in Expert-Learner Analysis
+# Self-Supervised Contrastive Learning for Videos using Differentiable Local Alignment
 
-Keyne Oei
+Keyne Oei, Amr Gomaa, Anna Maria Feit, João Belo
 
-<img src="lac.png" alt="LAC" width="750"/>
-
-<img src="pouring_vid1.png" alt="LAC_RES" width="750"/>
+Pytorch code for "Self-Supervised Contrastive Learning for Videos using Differentiable Local Alignment" ([https://arxiv.org/abs/2409.04607](https://arxiv.org/abs/2409.04607)).
 
 ## Environment Setup
 
@@ -65,4 +63,20 @@ python train.py --config='config/pouring/lac.json'
 
 ```
 tensorboard --logdir='saved/logs' --port=6008
+```
+
+## Citation
+
+If you found our paper/code useful in your research, please consider citing our paper:
+
+```
+@misc{oei2024lac,
+    title={Self-Supervised Contrastive Learning for Videos using Differentiable Local Alignment}, 
+    author={Keyne Oei and Amr Gomaa and Anna Maria Feit and João Belo},
+    year={2024},
+    eprint={2409.04607},
+    archivePrefix={arXiv},
+    primaryClass={cs.CV},
+    url={https://arxiv.org/abs/2409.04607}, 
+}
 ```
