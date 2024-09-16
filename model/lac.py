@@ -4,6 +4,7 @@ import torch.nn.functional as F
 
 from .mod import MOD
 from loguru import logger
+from .lav import SoftDTW
 
 def safe_div(a, b):
     out = a / b
@@ -67,43 +68,66 @@ class LAC(MOD):
         alpha = self.cfg.loss.alpha
 
         B, V, T, C = embs.shape
-        embs = embs.view(B*V, T, C)
-        e1 = embs[0].unsqueeze(0)
-        e2 = embs[1].unsqueeze(0)
 
-        if sw_bool:
-            # Local Alignment Constraint
-            sw_loss = SoftSW(go, ge, temperature=temperature)
-            sw_12, logits_12 = sw_loss(e1, e2)
+        local_logits = []
+        cont_logits = []
+        label_list = []
 
-        # Contrastive Loss
-        logits = torch.matmul(e1.squeeze(0), e2.squeeze(0).T) / temperature
+        total_loss = 0
+        for i in range(B):
+            emb = embs[i]
+            e1 = emb[0].unsqueeze(0)
+            e2 = emb[1].unsqueeze(0)
 
-        view1 = steps[0, 0, :]
-        view2 = steps[0, 1, :]
-        view1 = view1.view(-1, 1)
-        view2 = view2.view(1, -1)
+            view1 = steps[i, 0, :]
+            view2 = steps[i, 1, :]
+            view1 = view1.view(-1, 1)
+            view2 = view2.view(1, -1)
 
-        dist = torch.abs(view1 - view2)
+            dist = torch.abs(view1 - view2)
 
-        # pos
-        pos_weight = torch.exp(-torch.square(dist)/(2*var)).type_as(logits)
-        label = safe_div(pos_weight, pos_weight.sum(dim=1, keepdim=True))
+            # pos
+            pos_weight = torch.exp(-torch.square(dist)/(2*var))
+            label = safe_div(pos_weight, pos_weight.sum(dim=1, keepdim=True))
+            label_list.append(label)
 
-        # neg
-        exp_logits = torch.exp(logits)
-        sum_negative = torch.sum(exp_logits, dim=1, keepdim=True)
+            if sw_bool:
+                # Local Alignment 
+                sw_loss1 = SoftSW(go, ge, temperature=temperature)
+                sw_loss2 = SoftSW(go, ge, temperature=temperature)
+                sw_12, logits_12 = sw_loss1(e1, e2)
 
-        loss = F.kl_div(torch.log(safe_div(exp_logits, sum_negative) + 1e-6), label, reduction="none")
-        sh = loss.shape
-        if sw_bool:
-            loss = torch.sum(loss) + alpha * (sw_12)
-        else:
-            loss = torch.sum(loss)
-        loss = loss / (sh[0]*sh[1])
+                softmax_12 = torch.softmax(logits_12, dim=-1)
+                sw_21, logits_21 = sw_loss2(e2, e1)
+                softmax_21 = torch.softmax(logits_21, dim=-1)
+                
+                t2 = 0.1
+                logits = torch.matmul(softmax_12[0], softmax_21[0].T)
 
-        return loss
+                l_loss = torch.mean(F.cross_entropy(logits, label, reduction="none"))
+                alpha = 1
+                logger.info(f"Local Alignment Loss: {l_loss:4f}, sw_12: {sw_12:4f}, sw_21: {sw_21:4f}, tmp: {alpha * (sw_12 + sw_21)}")
+                l_loss = l_loss + alpha * (sw_12 + sw_21)
+                l_loss = 0.01 * l_loss
+    
+            logits = torch.matmul(e1.squeeze(0), e2.squeeze(0).T) / temperature
 
+            # neg
+            exp_logits = torch.exp(logits)
+            sum_negative = torch.sum(exp_logits, dim=1, keepdim=True)
+            cont_logits.append(safe_div(exp_logits, sum_negative))
+
+            c_loss = F.kl_div(torch.log(safe_div(exp_logits, sum_negative) + 1e-6), label, reduction="none")
+            c_loss = torch.sum(c_loss)/(T*T)
+
+            if sw_bool:
+                # logger.info(f"Contrastive Loss: {c_loss}, Local Alignment Loss: {l_loss}")
+                loss = c_loss + l_loss
+            else:
+                loss = c_loss
+            total_loss += loss
+        return total_loss / B
+    
 
 class _SoftSW(torch.autograd.Function):
     @staticmethod
@@ -220,8 +244,11 @@ class SoftSW(torch.nn.Module):
         B, N, M = S_xy.shape
         loss = 0
         probas = []
+        var = 10
         for b in range(B):
-            M, D = self.func_dtw(S_xy[b], self.go, self.ge, self.temperature)
+            S = 1/(S_xy[b])
+            # S = torch.exp(-S_xy[b]/(2*var**2))
+            M, D = self.func_dtw(S, self.go, self.ge, self.temperature)
             loss = loss + M
             probas.append(D)
         return loss / B, torch.stack(probas, 0)

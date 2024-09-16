@@ -29,6 +29,9 @@ align_dict = {
     "LAC": LAC,
 }
 
+def get_model(cfg):
+    return model_dict[cfg.arch.type](cfg)
+
 model_dict = {
     "Inceptionv3_SpatialSoftmax": Inceptionv3_SpatialSoftmax,
     "ResNet50_Conv": ResNet50_Conv,
@@ -54,13 +57,22 @@ def load_ckpt(cfg, model, optimizer):
         
     return model, optimizer, 0
 
-def save_ckpt(cfg, model, optimizer, epoch):
-    path = os.path.join(cfg.trainer.save_dir, f"{cfg.type}-ckpt_epoch_{epoch}.pth")
-    torch.save({
-        'epoch': epoch,
-        'model_state_dict': model.state_dict(),
-        'optimizer_state_dict': optimizer.state_dict(),
-        }, path)
+def save_ckpt(cfg, model, optimizer, epoch, go=None, ge=None):
+    path = os.path.join(cfg.trainer.save_dir, f"{cfg.name}-ckpt_epoch_{epoch}.pth")
+    if go is not None and ge is not None:
+        torch.save({
+            'epoch': epoch,
+            'model_state_dict': model.state_dict(),
+            'optimizer_state_dict': optimizer.state_dict(),
+            'go': go,
+            'ge': ge,
+            }, path)
+    else:
+        torch.save({
+            'epoch': epoch,
+            'model_state_dict': model.state_dict(),
+            'optimizer_state_dict': optimizer.state_dict(),
+            }, path)
     logger.info(f"Saved checkpoint to {path}")
 
 def train(cfg, train_loader, train_eval_loader=None, val_eval_loader=None):
@@ -72,6 +84,7 @@ def train(cfg, train_loader, train_eval_loader=None, val_eval_loader=None):
     
     model.to(cfg.device)
     model.train()
+    print("Start training...")
     
     optimizer = model_cfg.create_optimizer(model.parameters())
     
@@ -90,6 +103,9 @@ def train(cfg, train_loader, train_eval_loader=None, val_eval_loader=None):
     if cfg.use_amp:
         scaler = torch.cuda.amp.GradScaler()
         logger.info("Using AMP")
+
+    time_start = datetime.now()
+    print(f"Start time: {time_start}")
 
     for epoch in tqdm(range(last_epoch, last_epoch+cfg.trainer.epochs)):
         avg_loss = 0
@@ -141,18 +157,26 @@ def train(cfg, train_loader, train_eval_loader=None, val_eval_loader=None):
         scheduler.step()
 
         logger.info(f"Epoch: {epoch}, Loss: {avg_loss}")
+        # print(f"Epoch: {epoch} / {cfg.trainer.epochs}, Loss: {avg_loss}, Time: {datetime.now() - time_start}")
 
         writer.add_scalar('train/lr', [param_group["lr"] for param_group in optimizer.param_groups][0], epoch)
         writer.add_scalar('train/loss', avg_loss, epoch)
 
         if epoch % cfg.trainer.log_interval == 0:
-            save_ckpt(cfg, model, optimizer, epoch)
+            if cfg.type == "LAC":
+                logger.info(f"Save model LAC: {model_cfg.go}, {model_cfg.ge}")
+                save_ckpt(cfg, model, optimizer, epoch, model_cfg.go, model_cfg.ge)
+            else:
+                save_ckpt(cfg, model, optimizer, epoch)
 
         if cfg.eval:
             eval(cfg, model, model_cfg, train_eval_loader, val_eval_loader, epoch, writer)
     
     writer.close()
-    save_ckpt(cfg, model, optimizer, epoch)
+    if cfg.type == "LAC":
+        save_ckpt(cfg, model, optimizer, epoch, model_cfg.go, model_cfg.ge)
+    else:
+        save_ckpt(cfg, model, optimizer, epoch)
     logger.info(f"Training completed. Model saved to {cfg.trainer.save_dir}")
 
     return
@@ -212,7 +236,7 @@ def eval(cfg, model, model_cfg, train_eval_loader, val_eval_loader, epoch, summa
             logger.info(f"{task_name} done!")
         
         for task_name in tasks.keys():
-            summary_writer.add_scalar('metrics/%s_%s' % ("pouring", task_name),
+            summary_writer.add_scalar('metrics/%s_%s' % (dataset["name"], task_name),
                                     metrics[task_name], epoch)
 
         del dataset
