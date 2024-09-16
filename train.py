@@ -40,6 +40,11 @@ if __name__ == "__main__":
     args = parser.generate_args()
     cfg = parser.load_config(args)
 
+    if ("working_dir" in cfg.trainer) and (cfg.trainer.working_dir != ""):
+        cfg.trainer.save_dir = os.path.join(cfg.trainer.working_dir, "models")
+        cfg.trainer.log_dir = os.path.join(cfg.trainer.working_dir, "logs")
+        cfg.trainer.loguru_dir = os.path.join(cfg.trainer.working_dir, "loguru")
+
     util.ensure_dir(cfg.trainer.save_dir)
     util.ensure_dir(cfg.trainer.log_dir)
     util.ensure_dir(cfg.trainer.loguru_dir)

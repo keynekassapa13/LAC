@@ -40,7 +40,7 @@
         "num_workers": 2,
         "num_steps": 32,
         "num_context_steps": 2,
-        "num_frames": 64,
+        "num_frames": 32,
         "num_contexts": 1,
         "context_stride": 1,
         "frame_stride": 16,
