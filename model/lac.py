@@ -5,6 +5,7 @@ import torch.nn.functional as F
 from .mod import MOD
 from loguru import logger
 from .lav import SoftDTW
+from .lac_vec import VectorizedSoftSW
 
 def safe_div(a, b):
     out = a / b
@@ -69,10 +70,6 @@ class LAC(MOD):
 
         B, V, T, C = embs.shape
 
-        local_logits = []
-        cont_logits = []
-        label_list = []
-
         total_loss = 0
         for i in range(B):
             emb = embs[i]
@@ -89,12 +86,11 @@ class LAC(MOD):
             # pos
             pos_weight = torch.exp(-torch.square(dist)/(2*var))
             label = safe_div(pos_weight, pos_weight.sum(dim=1, keepdim=True))
-            label_list.append(label)
 
             if sw_bool:
-                # Local Alignment 
-                sw_loss1 = SoftSW(go, ge, temperature=temperature)
-                sw_loss2 = SoftSW(go, ge, temperature=temperature)
+                # Local Alignment (vectorized SoftSW: same output, lower memory)
+                sw_loss1 = VectorizedSoftSW(go, ge, temperature=temperature)
+                sw_loss2 = VectorizedSoftSW(go, ge, temperature=temperature)
                 sw_12, logits_12 = sw_loss1(e1, e2)
 
                 softmax_12 = torch.softmax(logits_12, dim=-1)
@@ -115,7 +111,6 @@ class LAC(MOD):
             # neg
             exp_logits = torch.exp(logits)
             sum_negative = torch.sum(exp_logits, dim=1, keepdim=True)
-            cont_logits.append(safe_div(exp_logits, sum_negative))
 
             c_loss = F.kl_div(torch.log(safe_div(exp_logits, sum_negative) + 1e-6), label, reduction="none")
             c_loss = torch.sum(c_loss)/(T*T)

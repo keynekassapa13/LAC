@@ -6,6 +6,7 @@ from torch.autograd import Function
 
 from .mod import MOD
 from loguru import logger
+from .gta_vec import smoothDTW_vec
 
 """
 References:
@@ -117,13 +118,13 @@ class GTA(MOD):
         skip = 1
 
         for j in range(i+1, batch_size):
-            logits_ij, _ = smoothDTW(
+            logits_ij, _ = smoothDTW_vec(
                 embs[i,::skip,:], embs[j],
                 similarity_type, softning, gamma_s, gamma_f)
             logits_ij_list.append(logits_ij[-1, -1])
             logits_ij = F.softmax(-logits_ij[1:, 1:], dim=0)
 
-            logits_ji, _ = smoothDTW(
+            logits_ji, _ = smoothDTW_vec(
                 embs[j], embs[i,::skip,:],
                 similarity_type, softning, gamma_s, gamma_f)
             logits_ji_list.append(logits_ji[-1, -1])
@@ -155,7 +156,7 @@ class GTA(MOD):
         logits_list = []
         i = 0
         for j in range(i+1, batch_size):
-            logits, _ = smoothDTW(
+            logits, _ = smoothDTW_vec(
                 embs[i], embs[j],
                 similarity_type, softning, gamma_s, gamma_f)
             logits_list.append(logits[-1, -1])

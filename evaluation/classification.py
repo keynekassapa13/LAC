@@ -37,8 +37,8 @@ def fit_svm_model(train_embs, train_labels,
 
 
 def fit_linear_models(train_embs, train_labels, val_embs, val_labels,
-                      model_type='svm'):
-    """Fit Log Regression and SVM Models."""
+                      model_type='linear'):
+    """Fit linear or svm classifier."""
     if model_type == 'linear':
         model, train_acc, val_acc = fit_linear_model(train_embs, train_labels,
                                                 val_embs, val_labels)
