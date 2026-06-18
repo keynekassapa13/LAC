@@ -75,7 +75,10 @@ def save_ckpt(cfg, model, optimizer, epoch, go=None, ge=None):
             }, path)
     logger.info(f"Saved checkpoint to {path}")
 
-def train(cfg, train_loader, train_eval_loader=None, val_eval_loader=None):
+def train(cfg, train_loader, train_eval_loader=None, val_eval_loader=None, io=None):
+    # `io` is an optional progress sink (e.g. a Flask-SocketIO server). When None
+    # (the default / CLI path) training behaves exactly as before; when provided,
+    # a per-epoch 'training_progress' event is emitted for live UIs.
     model = model_dict[cfg.arch.type](cfg)
     model_cfg = align_dict[cfg.type](cfg)
 
@@ -105,6 +108,7 @@ def train(cfg, train_loader, train_eval_loader=None, val_eval_loader=None):
         logger.info("Using AMP")
 
     time_start = datetime.now()
+    loss_list = []
     print(f"Start time: {time_start}")
 
     for epoch in tqdm(range(last_epoch, last_epoch+cfg.trainer.epochs)):
@@ -158,6 +162,26 @@ def train(cfg, train_loader, train_eval_loader=None, val_eval_loader=None):
 
         logger.info(f"Epoch: {epoch}, Loss: {avg_loss}")
         # print(f"Epoch: {epoch} / {cfg.trainer.epochs}, Loss: {avg_loss}, Time: {datetime.now() - time_start}")
+
+        if io is not None:
+            loss_list.append(avg_loss)
+            progress = (epoch / cfg.trainer.epochs) * 100
+            time_elapsed = datetime.now() - time_start
+            if progress > 0:
+                estimated_total_time = time_elapsed / (progress / 100)
+                remaining_time = str(estimated_total_time - time_elapsed).split(".")[0]
+            else:
+                remaining_time = "Calculating..."
+            io.emit('training_progress', {
+                'data': f"Epoch: {epoch} / {cfg.trainer.epochs}, Loss: {avg_loss}, Time: {time_elapsed}",
+                'match': True,
+                'epoch': epoch,
+                'loss': avg_loss,
+                'loss_list': loss_list,
+                'time': str(time_elapsed),
+                'progress': progress,
+                'remaining_time': remaining_time,
+            })
 
         writer.add_scalar('train/lr', [param_group["lr"] for param_group in optimizer.param_groups][0], epoch)
         writer.add_scalar('train/loss', avg_loss, epoch)
