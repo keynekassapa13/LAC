@@ -75,10 +75,9 @@ def save_ckpt(cfg, model, optimizer, epoch, go=None, ge=None):
             }, path)
     logger.info(f"Saved checkpoint to {path}")
 
-def train(cfg, train_loader, train_eval_loader=None, val_eval_loader=None, io=None):
-    # `io` is an optional progress sink (e.g. a Flask-SocketIO server). When None
-    # (the default / CLI path) training behaves exactly as before; when provided,
-    # a per-epoch 'training_progress' event is emitted for live UIs.
+def train(cfg, train_loader, train_eval_loader=None, val_eval_loader=None, io=None, stop_event=None):
+    # io: optional progress sink (Flask-SocketIO) for live UIs; None = CLI behaviour.
+    # stop_event: optional threading.Event; when set, training stops cooperatively.
     model = model_dict[cfg.arch.type](cfg)
     model_cfg = align_dict[cfg.type](cfg)
 
@@ -109,12 +108,21 @@ def train(cfg, train_loader, train_eval_loader=None, val_eval_loader=None, io=No
 
     time_start = datetime.now()
     loss_list = []
+    total_steps = max(1, cfg.trainer.epochs * len(train_loader))
+    global_step = last_epoch * len(train_loader)
     print(f"Start time: {time_start}")
 
     for epoch in tqdm(range(last_epoch, last_epoch+cfg.trainer.epochs)):
         avg_loss = 0
-        
+
         for i, data in enumerate(train_loader):
+            if stop_event is not None and stop_event.is_set():
+                logger.info("Stop requested; ending training.")
+                if io is not None:
+                    io.emit('training_progress', {'data': 'Training stopped by user.', 'stopped': True})
+                writer.close()
+                return
+
             model.train()
 
             frames = data["frames"].to(cfg.device)
@@ -151,11 +159,30 @@ def train(cfg, train_loader, train_eval_loader=None, val_eval_loader=None, io=No
                 optimizer.step()
             
             avg_loss += loss.item()
+            global_step += 1
 
             if cfg.device == "cuda":
                 torch.cuda.synchronize()
                 torch.cuda.empty_cache()
             logger.info(f"Epoch: {epoch}, Batch: {i}, Loss: {loss.item()}")
+
+            if io is not None:
+                progress = (global_step / total_steps) * 100
+                time_elapsed = datetime.now() - time_start
+                if global_step > 0:
+                    est_total = time_elapsed / (global_step / total_steps)
+                    remaining_time = str(est_total - time_elapsed).split(".")[0]
+                else:
+                    remaining_time = "Calculating..."
+                io.emit('training_progress', {
+                    'data': f"Epoch {epoch} | batch {i + 1}/{len(train_loader)} | loss {loss.item():.4f}",
+                    'step': global_step,
+                    'epoch': epoch,
+                    'batch': i,
+                    'loss': loss.item(),
+                    'progress': progress,
+                    'remaining_time': remaining_time,
+                })
 
         avg_loss /= len(train_loader)
         scheduler.step()
@@ -165,22 +192,12 @@ def train(cfg, train_loader, train_eval_loader=None, val_eval_loader=None, io=No
 
         if io is not None:
             loss_list.append(avg_loss)
-            progress = (epoch / cfg.trainer.epochs) * 100
-            time_elapsed = datetime.now() - time_start
-            if progress > 0:
-                estimated_total_time = time_elapsed / (progress / 100)
-                remaining_time = str(estimated_total_time - time_elapsed).split(".")[0]
-            else:
-                remaining_time = "Calculating..."
             io.emit('training_progress', {
-                'data': f"Epoch: {epoch} / {cfg.trainer.epochs}, Loss: {avg_loss}, Time: {time_elapsed}",
-                'match': True,
+                'data': f"Epoch {epoch} done | avg loss {avg_loss:.4f} | elapsed {datetime.now() - time_start}",
+                'epoch_done': True,
                 'epoch': epoch,
-                'loss': avg_loss,
+                'avg_loss': avg_loss,
                 'loss_list': loss_list,
-                'time': str(time_elapsed),
-                'progress': progress,
-                'remaining_time': remaining_time,
             })
 
         writer.add_scalar('train/lr', [param_group["lr"] for param_group in optimizer.param_groups][0], epoch)
